@@ -1,0 +1,58 @@
+name: Build Baseline
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.x"
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Build terra-draw
+        working-directory: ./packages/terra-draw
+        run: npm run build
+
+      - name: Build terra-draw-maplibre-gl-adapter
+        working-directory: ./packages/terra-draw-maplibre-gl-adapter
+        run: npm run build
+
+      - name: Pack packages
+        run: |
+          cd packages/terra-draw && npm pack && mv terra-draw-*.tgz $GITHUB_WORKSPACE/
+          cd $GITHUB_WORKSPACE/packages/terra-draw-maplibre-gl-adapter && npm pack && mv terra-draw-maplibre-gl-adapter-*.tgz $GITHUB_WORKSPACE/
+          TD_VERSION=$(node -p "require('./packages/terra-draw/package.json').version")
+          ADAPTER_VERSION=$(node -p "require('./packages/terra-draw-maplibre-gl-adapter/package.json').version")
+          echo "TD_VERSION=$TD_VERSION" >> $GITHUB_ENV
+          echo "ADAPTER_VERSION=$ADAPTER_VERSION" >> $GITHUB_ENV
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: baseline-td${{ env.TD_VERSION }}-adapter${{ env.ADAPTER_VERSION }}
+          name: "Baseline terra-draw@${{ env.TD_VERSION }} + maplibre-gl-adapter@${{ env.ADAPTER_VERSION }}"
+          files: |
+            terra-draw-${{ env.TD_VERSION }}.tgz
+            terra-draw-maplibre-gl-adapter-${{ env.ADAPTER_VERSION }}.tgz
+          prerelease: false
+          body: |
+            Pre-built baseline packages from the [Tinnci/terra-draw](https://github.com/Tinnci/terra-draw) fork.
+
+            Maintained by [Tinnci/Hospital-TempBox-Management](https://github.com/Tinnci/Hospital-TempBox-Management).
+
+            | Package | Version | Install URL |
+            |---|---|---|
+            | terra-draw | v${{ env.TD_VERSION }} | `https://github.com/Tinnci/terra-draw/releases/download/baseline-td${{ env.TD_VERSION }}-adapter${{ env.ADAPTER_VERSION }}/terra-draw-${{ env.TD_VERSION }}.tgz` |
+            | terra-draw-maplibre-gl-adapter | v${{ env.ADAPTER_VERSION }} | `https://github.com/Tinnci/terra-draw/releases/download/baseline-td${{ env.TD_VERSION }}-adapter${{ env.ADAPTER_VERSION }}/terra-draw-maplibre-gl-adapter-${{ env.ADAPTER_VERSION }}.tgz` |
